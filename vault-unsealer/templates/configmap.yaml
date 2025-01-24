@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-unsealer
+  namespace: {{ include "vault-unsealer.namespace" . }}
+  labels:
+    {{- include "vault-unsealer.labels" . | nindent 4 }}
+data:
+  vault-unsealer.sh: |
+    #!/bin/bash
+    log () {
+        echo "$(date +%Y-%m-%dT%H:%M:%S) ${1}"
+    }
+
+    log "starting unsealer"
+
+    while true
+    do
+        log "checking seal status"
+        for VAULT_NODE in {0..2} ; do
+            log "checking pod $VAULT_RELEASE_NAME-${VAULT_NODE}"
+            kubectl --cache-dir /tmp exec -n $NAMESPACE $VAULT_RELEASE_NAME-${VAULT_NODE} -- vault status > /dev/null
+            STATUS=$?
+            if [ ${STATUS} == 2 ]
+            then
+                log "vault is sealed in pod $VAULT_RELEASE_NAME-${VAULT_NODE}"
+                log "starting unseal process"
+                for KEY in {1..5} ; do
+                    log "unseal key ${KEY}"
+                    kubectl --cache-dir /tmp exec -n $NAMESPACE $VAULT_RELEASE_NAME-${VAULT_NODE} -- vault operator unseal "$(cat /secrets/unseal_key_${KEY})" > /dev/null
+                done
+            else
+                if [ ${STATUS} != 0 ] ; then
+                    log "error checking pod $VAULT_RELEASE_NAME-${VAULT_NODE}!"
+                    exit 1
+                else
+                    log "vault is unsealed"
+                fi
+            fi
+        done
+        sleep 180
+    done
+
+  vault-init.sh: |
+    #!/bin/bash
+
+    kubectl -n $NAMESPACE exec $VAULT_RELEASE_NAME-0 -- vault operator init -status 2>/dev/null
+
+
+    status=$?
+
+    if [ $status -eq 0 ]
+    then
+      echo "Vault is already initialized."
+
+    elif [ $status -eq 2 ]
+    then
+      echo "Vault is need to be initialized."
+
+      output=$(kubectl -n $NAMESPACE exec $VAULT_RELEASE_NAME-0 -- vault operator init -format=json)
+
+      keys=$(echo $output | jq -r '.unseal_keys_hex[]')
+
+      root_token=$(echo $output | jq -r '.root_token')
+
+      i=0
+      for key in $keys
+      do
+        # Write the key to the file
+        echo "unseal_key_${i}=${key}" >> /tmp/secrets.ini
+        i=$((i+1))
+      done
+
+      echo "root_token=${root_token}" >> /tmp/secrets.ini
+
+      kubectl -n $NAMESPACE create secret generic vault-init --from-env-file=/tmp/secrets.ini
+
+    else
+      echo "An error occurred."
+      exit 1
+    fi
+    

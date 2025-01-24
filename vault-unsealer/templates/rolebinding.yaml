@@ -1,0 +1,17 @@
+{{- if .Values.serviceAccount.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "vault-unsealer.serviceAccountName" . }}
+  namespace: {{ include "vault-unsealer.namespace" . }}
+  labels:
+    {{- include "vault-unsealer.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "vault-unsealer.serviceAccountName" . }}
+    namespace: {{ include "vault-unsealer.namespace" . }}
+roleRef:
+  kind: Role
+  name: {{ include "vault-unsealer.serviceAccountName" . }}-role
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
