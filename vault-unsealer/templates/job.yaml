@@ -1,0 +1,85 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-init
+  namespace: {{ include "vault-unsealer.namespace" . }}
+  labels:
+    {{- include "vault-unsealer.labels" . | nindent 4 }}
+spec:
+  template:
+    metadata:
+      name: vault-init
+      labels:
+        {{- include "vault-unsealer.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "vault-unsealer.serviceAccountName" . }}
+      initContainers:
+      - name: wait-vault
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          while true; do
+            status=$(kubectl get pod $VAULT_RELEASE_NAME-0 -n $NAMESPACE -o jsonpath="{.status.phase}")
+            if [ "$status" = "Running" ]; then
+              echo "Pod is ready"
+              exit 0
+            else
+              echo "Pod is not ready yet"
+              sleep 10
+            fi
+          done
+        env:
+          - name: NAMESPACE
+            value: {{ include "vault-unsealer.namespace" . | quote }}
+          - name: VAULT_RELEASE_NAME
+            value: {{ .Values.vaultReleaseName | quote }}
+      volumes:
+        - name: vault-unsealer
+          configMap:
+            name: vault-unsealer
+            defaultMode: 0777
+            items:
+              - key: vault-init.sh
+                path: vault-init.sh
+      containers:
+      - name: vault-init
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+          - /bin/bash
+        args:
+          - -c
+          - /scripts/vault-init.sh
+        env:
+          - name: NAMESPACE
+            value: {{ include "vault-unsealer.namespace" . | quote }}
+          - name: VAULT_RELEASE_NAME
+            value: {{ .Values.vaultReleaseName | quote }}
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+        volumeMounts:
+          - name: vault-unsealer
+            mountPath: /scripts/vault-init.sh
+            subPath: vault-init.sh
+      restartPolicy: Never
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 300

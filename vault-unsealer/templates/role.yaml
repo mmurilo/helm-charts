@@ -1,0 +1,19 @@
+{{- if .Values.serviceAccount.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "vault-unsealer.serviceAccountName" . }}-role
+  namespace: {{ include "vault-unsealer.namespace" . }}
+  labels:
+    {{- include "vault-unsealer.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs:
+      - "get"
+
+  - apiGroups: [""]
+    resources: ["pods/exec", "secrets"]
+    verbs:
+      - "create"
+{{- end }}      

@@ -1,0 +1,50 @@
+# Default values for vault-unsealer.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# The namespace to deploy to. Defaults to the `helm` installation namespace.
+# Must be deployed in the same namespace as Vault
+namespace: ""
+
+# Name of the helm release used to deploy Vault. Used to identify the Vault pods.
+vaultReleaseName: "vault"
+
+image:
+  repository: docker.io/bitnami/kubectl
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "1.28"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext:
+  allowPrivilegeEscalation: false
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
