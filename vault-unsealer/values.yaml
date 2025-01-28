@@ -9,6 +9,9 @@ namespace: ""
 # Name of the helm release used to deploy Vault. Used to identify the Vault pods.
 vaultReleaseName: "vault"
 
+# specify if vault is using tls
+vault_tls_enabled: true
+
 image:
   repository: docker.io/bitnami/kubectl
   pullPolicy: IfNotPresent
@@ -59,6 +62,4 @@ bootstrap:
     pullPolicy: IfNotPresent
 
   # Extra namespaces to allow Vault Policy
-  extra_namespaces:
-    []
-    # - vault-admin
+  extra_namespaces: []

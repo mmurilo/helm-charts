@@ -102,7 +102,36 @@ data:
   bootstrap.sh: |
     #!/bin/sh
 
-    vault login token=$VAULT_TOKEN
+    success_count=0
+    required_successes=3
+    
+    # check vault status
+    while true; do
+      vault status
+      status=$?
+
+      # if [ $status -eq 0 ]
+      # then
+      #   echo "Vault is unsealed."
+      #   break
+
+      if [ $status -eq 0 ]; then
+        success_count=$((success_count + 1))
+        echo "Vault is unsealed. Success count: $success_count"
+        if [ $success_count -ge $required_successes ]; then
+          echo "Vault is confirmed unsealed after $required_successes checks."
+          break
+        fi
+
+      else
+        echo "Vault is not ready."
+        sleep 10
+      fi
+    done
+
+    # login
+    vault login -no-print token=$VAULT_TOKEN
+
 
     if [ -z "$(vault auth list -format=yaml | grep 'type: kubernetes')" ]; then
       echo "Enabling Kubernetes auth method"
@@ -112,13 +141,13 @@ data:
     fi
 
     #config kubernetes host
-    vault write -tls-skip-verify auth/kubernetes/config kubernetes_host=https://kubernetes.default.svc:443
+    vault write auth/kubernetes/config kubernetes_host=https://kubernetes.default.svc:443
 
     #policy
-    vault policy write -tls-skip-verify vault-admin /scripts/vault-admin-policy.hcl
+    vault policy write vault-admin /scripts/vault-admin-policy.hcl
 
     #role
-    vault write -tls-skip-verify auth/kubernetes/role/vault-admin \
+    vault write auth/kubernetes/role/vault-admin \
       bound_service_account_names="*" \
       bound_service_account_namespaces={{ .Release.Namespace }}{{- if .Values.bootstrap.extra_namespaces -}},{{- join "," .Values.bootstrap.extra_namespaces }}{{- end }} \
       policies=vault-admin \
