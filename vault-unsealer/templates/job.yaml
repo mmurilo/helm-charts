@@ -38,6 +38,8 @@ spec:
             value: {{ include "vault-unsealer.namespace" . | quote }}
           - name: VAULT_RELEASE_NAME
             value: {{ .Values.vaultReleaseName | quote }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
       volumes:
         - name: vault-unsealer
           configMap:
@@ -49,7 +51,7 @@ spec:
       containers:
       - name: vault-init
         securityContext:
-          {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- toYaml .Values.securityContext | nindent 10 }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
@@ -83,3 +85,79 @@ spec:
       {{- end }}
   backoffLimit: 0
   ttlSecondsAfterFinished: 300
+---
+{{- if .Values.bootstrap.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-bootstrap
+  namespace: {{ include "vault-unsealer.namespace" . }}
+  labels:
+    {{- include "vault-unsealer.labels" . | nindent 4 }}
+spec:
+  template:
+    metadata:
+      name: vault-test-job
+      labels:
+        {{- include "vault-unsealer.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "vault-unsealer.serviceAccountName" . }}
+      containers:
+      - name: vault-bootstrap
+        image: "{{ .Values.bootstrap.image.repository }}:{{ .Values.bootstrap.image.tag }}"
+        imagePullPolicy: {{ .Values.bootstrap.image.pullPolicy }}
+        command: ["/bin/sh", "-c"]
+        args: ["/scripts/bootstrap.sh"]
+        env:
+          - name: VAULT_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: vault-init
+                key: root_token
+          - name: VAULT_ADDR
+            value: "http://vault:8200"
+        volumeMounts:
+          - name: scripts
+            mountPath: "/scripts"
+            readOnly: true
+          
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+      restartPolicy: Never
+        {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: scripts
+          projected:
+            sources:
+            - configMap:
+                name: vault-bootstrap
+                items:
+                  - key: vault-admin-policy.hcl
+                    path: vault-admin-policy.hcl
+            - configMap:
+                name: vault-bootstrap
+                items:
+                  - key: bootstrap.sh
+                    path: bootstrap.sh
+                    mode: 0544
+      restartPolicy: Never
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 300
+{{- end }}

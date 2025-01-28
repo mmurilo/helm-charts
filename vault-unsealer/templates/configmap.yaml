@@ -8,6 +8,9 @@ metadata:
 data:
   vault-unsealer.sh: |
     #!/bin/bash
+
+    NODES=$(kubectl --cache-dir /tmp -n $NAMESPACE get sts $VAULT_RELEASE_NAME -o=jsonpath='{.status.replicas}')
+
     log () {
         echo "$(date +%Y-%m-%dT%H:%M:%S) ${1}"
     }
@@ -17,7 +20,7 @@ data:
     while true
     do
         log "checking seal status"
-        for VAULT_NODE in {0..2} ; do
+        for VAULT_NODE in $(seq 0 $(($NODES - 1))) ; do
             log "checking pod $VAULT_RELEASE_NAME-${VAULT_NODE}"
             kubectl --cache-dir /tmp exec -n $NAMESPACE $VAULT_RELEASE_NAME-${VAULT_NODE} -- vault status > /dev/null
             STATUS=$?
@@ -25,7 +28,7 @@ data:
             then
                 log "vault is sealed in pod $VAULT_RELEASE_NAME-${VAULT_NODE}"
                 log "starting unseal process"
-                for KEY in {1..5} ; do
+                for KEY in {0..4} ; do
                     log "unseal key ${KEY}"
                     kubectl --cache-dir /tmp exec -n $NAMESPACE $VAULT_RELEASE_NAME-${VAULT_NODE} -- vault operator unseal "$(cat /secrets/unseal_key_${KEY})" > /dev/null
                 done
@@ -80,3 +83,44 @@ data:
       exit 1
     fi
     
+
+---
+{{- if .Values.bootstrap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-bootstrap
+  namespace: {{ include "vault-unsealer.namespace" . }}
+  labels:
+    {{- include "vault-unsealer.labels" . | nindent 4 }}
+data:
+  vault-admin-policy.hcl: |
+    path "/*" {
+      capabilities = ["create", "read", "update", "delete", "list","sudo"]
+    }
+
+  bootstrap.sh: |
+    #!/bin/sh
+
+    vault login token=$VAULT_TOKEN
+
+    if [ -z "$(vault auth list -format=yaml | grep 'type: kubernetes')" ]; then
+      echo "Enabling Kubernetes auth method"
+      vault auth enable kubernetes
+    else
+      echo "Kubernetes auth method is already enabled"
+    fi
+
+    #config kubernetes host
+    vault write -tls-skip-verify auth/kubernetes/config kubernetes_host=https://kubernetes.default.svc:443
+
+    #policy
+    vault policy write -tls-skip-verify vault-admin /scripts/vault-admin-policy.hcl
+
+    #role
+    vault write -tls-skip-verify auth/kubernetes/role/vault-admin \
+      bound_service_account_names="*" \
+      bound_service_account_namespaces=vault-admin,vault \
+      policies=vault-admin \
+      ttl=1h
+{{- end }}

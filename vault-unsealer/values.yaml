@@ -13,7 +13,7 @@ image:
   repository: docker.io/bitnami/kubectl
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "1.28"
+  tag: "1.30"
 
 imagePullSecrets: []
 nameOverride: ""
@@ -34,6 +34,7 @@ podSecurityContext: {}
 
 securityContext:
   allowPrivilegeEscalation: false
+  runAsNonRoot: true
 
 resources:
   limits:
@@ -48,3 +49,10 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+bootstrap:
+  enabled: true
+  image:
+    repository: hashicorp/vault
+    tag: 1.8.1
+    pullPolicy: IfNotPresent
