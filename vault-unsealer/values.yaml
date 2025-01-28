@@ -50,9 +50,15 @@ tolerations: []
 
 affinity: {}
 
+# Enable the bootstrap script
 bootstrap:
   enabled: true
   image:
     repository: hashicorp/vault
     tag: 1.8.1
     pullPolicy: IfNotPresent
+
+  # Extra namespaces to allow Vault Policy
+  extra_namespaces:
+    []
+    # - vault-admin

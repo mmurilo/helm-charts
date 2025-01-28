@@ -120,7 +120,7 @@ data:
     #role
     vault write -tls-skip-verify auth/kubernetes/role/vault-admin \
       bound_service_account_names="*" \
-      bound_service_account_namespaces=vault-admin,vault \
+      bound_service_account_namespaces={{ .Release.Namespace }}{{- if .Values.bootstrap.extra_namespaces -}},{{- join "," .Values.bootstrap.extra_namespaces }}{{- end }} \
       policies=vault-admin \
       ttl=1h
 {{- end }}

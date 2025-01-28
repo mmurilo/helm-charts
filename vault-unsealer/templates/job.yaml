@@ -119,7 +119,7 @@ spec:
                 name: vault-init
                 key: root_token
           - name: VAULT_ADDR
-            value: "http://vault:8200"
+            value: "http://{{ .Values.vaultReleaseName }}:8200"
         volumeMounts:
           - name: scripts
             mountPath: "/scripts"
