@@ -2,6 +2,6 @@ apiVersion: v2
 name: vault-unsealer
 description: A Helm chart for unseal Hashicorp Vault
 type: application
-version: 0.2.0-beta
+version: 0.2.0
 appVersion: "1.30"
 kubeVersion: ">= 1.20.0-0"
