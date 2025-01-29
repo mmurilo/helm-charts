@@ -12,6 +12,12 @@ rules:
     verbs:
       - "get"
 
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    verbs:
+      - "get"
+      - "describe"
+
   - apiGroups: [""]
     resources: ["pods/exec", "secrets"]
     verbs:
